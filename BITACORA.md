@@ -243,6 +243,16 @@ Registro paso a paso de lo que se va haciendo y por qué.
 - **Mínimo privilegio:** "All resource groups" le daba *Contributor* sobre toda la suscripción (incluido DEV). Con Azure CLI se le asignó *Contributor* solo sobre `az-fv-qas-de-rg-dataops` y `az-fv-prd-de-rg-dataops` y se eliminó el rol a nivel de suscripción. Resultado verificado: únicamente esos dos roles.
 - **Evidencias:** 42–44.
 
+### 26. Primera ejecución del CI/CD (run #1, `20261109.1`): falla en post-despliegue
+- **Registro:** PR #3 completado (merge `6f866da`); pipeline `dataops-adf-cicd` creado por API desde `pipelines/azure-pipelines.yml`; se autorizó su uso de los environments `ADF-QAS` y `ADF-PRD`.
+- **Resultado:**
+  - ✅ **CI:** pytest (22 pruebas), validación de ADF, exportación ARM y artefacto.
+  - ✅ CD_QAS: pre-despliegue y **despliegue de la plantilla ARM en `az-fv-qas-de-dfc-etl`**.
+  - ❌ CD_QAS: post-despliegue → `Cannot index into a null array` (línea 718 de `PrePostDeploymentScript.ps1`). CD_PRD se omitió.
+- **Causa:** con `-deleteDeployment $true`, el script de Microsoft busca el despliegue ARM cuyo nombre empiece con `ArmTemplate_master` o `ArmTemplateForFactory` para borrarlo del historial; el despliegue se había llamado `adf-<BuildNumber>`, así que no encontró ninguno.
+- **Corrección** (rama `fix/nombre-deployment-arm`): `deploymentName: ArmTemplateForFactory-$(Build.BuildId)`.
+- **Costo:** 0 USD (no llegó a ejecutarse el Data Flow).
+
 ---
 
 ## Pendiente
