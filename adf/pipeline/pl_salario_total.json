@@ -1,0 +1,120 @@
+{
+	"name": "pl_salario_total",
+	"properties": {
+		"description": "1) Copia rrhh.empleado de PostgreSQL a raw/empleados/. 2) Data Flow: join con el CSV de comisiones del periodo y escritura del Parquet en curated/salario_total/periodo=<AAAAMM>/.",
+		"activities": [
+			{
+				"name": "cp_pg_empleado_a_raw",
+				"description": "Extrae rrhh.empleado de PostgreSQL y lo guarda como Parquet en raw/empleados/.",
+				"type": "Copy",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.00:30:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 60,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "PostgreSqlV2Source",
+						"query": "SELECT empleado_id, tip_documento, num_documento, nom_empleado, ape_empleado, cod_cargo, cod_departamento, mnt_salario, mnt_tope_comision FROM rrhh.empleado"
+					},
+					"sink": {
+						"type": "ParquetSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						},
+						"formatSettings": {
+							"type": "ParquetWriteSettings"
+						}
+					},
+					"enableStaging": false
+				},
+				"inputs": [
+					{
+						"referenceName": "ds_pg_empleado",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "ds_adls_empleado_parquet",
+						"type": "DatasetReference"
+					}
+				]
+			},
+			{
+				"name": "df_calcular_salario_total",
+				"description": "Join por empleado_id, comisión 0 para empleados sin comisión, tope opcional y salida Parquet.",
+				"type": "ExecuteDataFlow",
+				"dependsOn": [
+					{
+						"activity": "cp_pg_empleado_a_raw",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.01:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataflow": {
+						"referenceName": "df_salario_total",
+						"type": "DataFlowReference",
+						"parameters": {
+							"periodo": {
+								"value": "'@{pipeline().parameters.periodo}'",
+								"type": "Expression"
+							},
+							"aplicar_tope": {
+								"value": "'@{pipeline().parameters.aplicar_tope}'",
+								"type": "Expression"
+							}
+						},
+						"datasetParameters": {
+							"srcEmpleado": {},
+							"srcComision": {
+								"fileName": {
+									"value": "@concat('ComisionEmpleados_V1_', pipeline().parameters.periodo, '.csv')",
+									"type": "Expression"
+								}
+							},
+							"sinkSalarioTotal": {
+								"periodo": {
+									"value": "@pipeline().parameters.periodo",
+									"type": "Expression"
+								}
+							}
+						}
+					},
+					"compute": {
+						"coreCount": 8,
+						"computeType": "General"
+					},
+					"traceLevel": "Fine"
+				}
+			}
+		],
+		"parameters": {
+			"periodo": {
+				"type": "string",
+				"defaultValue": "202610"
+			},
+			"aplicar_tope": {
+				"type": "string",
+				"defaultValue": "si"
+			}
+		},
+		"annotations": [
+			"dataops-dmc"
+		]
+	}
+}

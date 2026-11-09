@@ -1,0 +1,24 @@
+{
+	"name": "ls_pgsql_empleado",
+	"properties": {
+		"description": "PostgreSQL del curso (base dmc, esquema rrhh). La contraseña se lee de Key Vault. El servidor no admite SSL.",
+		"annotations": [],
+		"type": "PostgreSqlV2",
+		"typeProperties": {
+			"server": "mgg.vps.webdock.cloud",
+			"port": 5432,
+			"database": "dmc",
+			"username": "usr_ro_dmc_rrhh_estudiantes",
+			"password": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "ls_kv_etl",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": "pg-password"
+			},
+			"sslMode": 0,
+			"authenticationType": "Basic"
+		}
+	}
+}

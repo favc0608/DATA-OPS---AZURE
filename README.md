@@ -70,7 +70,7 @@ PG_PASSWORD='<contraseña>' ./scripts/provisionar_azure.sh prd
 El script crea el grupo de recursos, el Data Lake con sus contenedores (y sube el CSV a `raw/comisiones/`), el Key Vault con los secretos `pg-host`, `pg-port`, `pg-db`, `pg-user` y `pg-password`, y el Data Factory con identidad administrada y permisos sobre el Key Vault y el Data Lake.
 
 ### 3. Conectar Data Factory DEV a Git
-En ADF Studio (DEV): *Manage → Git configuration* → Azure DevOps Git, repositorio `dataops-dmc`, rama de colaboración `main`, carpeta raíz `/adf`.
+En ADF Studio (DEV): *Manage → Git configuration* → Azure DevOps Git, repositorio `dataops-dmc`, rama de colaboración `main`, carpeta raíz `/adf`. También se puede hacer desde la terminal con la API `configureFactoryRepo` (ver [BITACORA.md](BITACORA.md), paso 15). Solo DEV se conecta a Git; QAS y PRD se actualizan por CI/CD.
 
 ### 4. CI/CD
 *En construcción.* Se documentará aquí el pipeline de Azure Pipelines (validación, generación de plantillas ARM y despliegue a QAS y PRD con aprobaciones).

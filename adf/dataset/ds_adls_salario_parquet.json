@@ -1,0 +1,30 @@
+{
+	"name": "ds_adls_salario_parquet",
+	"properties": {
+		"description": "Salida consolidada en el Data Lake: curated/salario_total/periodo=<AAAAMM>/.",
+		"linkedServiceName": {
+			"referenceName": "ls_adls_lake",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"periodo": {
+				"type": "string",
+				"defaultValue": "202610"
+			}
+		},
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": {
+					"value": "@concat('salario_total/periodo=', dataset().periodo)",
+					"type": "Expression"
+				},
+				"fileSystem": "curated"
+			},
+			"compressionCodec": "snappy"
+		},
+		"schema": []
+	}
+}

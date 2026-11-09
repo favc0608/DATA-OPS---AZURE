@@ -1,0 +1,11 @@
+{
+	"name": "ls_kv_etl",
+	"properties": {
+		"description": "Key Vault del entorno con los secretos de conexión a PostgreSQL.",
+		"annotations": [],
+		"type": "AzureKeyVault",
+		"typeProperties": {
+			"baseUrl": "https://az-fv-dev-de-kvt-etl.vault.azure.net/"
+		}
+	}
+}

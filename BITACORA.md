@@ -105,16 +105,80 @@ Registro paso a paso de lo que se va haciendo y por qué.
 - **Qué:** las capturas se guardan en [docs/evidencias/](docs/evidencias/) con número y nombre descriptivo, y se listan en su [README](docs/evidencias/README.md) con fecha, descripción y paso de la bitácora.
 - **Por qué:** el informe y las evidencias valen 6 de 20 puntos; así quedan ordenadas para armar el informe final.
 
+### 14. Repositorio Git y primer push a Azure Repos
+- **Qué:** se inicializó Git en la carpeta del proyecto (rama `main`) y se subió a https://dev.azure.com/frankvargaschavez201/dataops-dmc/_git/dataops-dmc.
+- **Estructura:** `adf/` (recursos de Data Factory), `pipelines/` (YAML de CI/CD), `scripts/`, `tests/`, `data/sample/` (CSV de ejemplo), `docs/evidencias/`, más `README.md`, `BITACORA.md` y `HALLAZGOS.md`.
+- **Seguridad:**
+  - `.gitignore` excluye `CLASE/`, `PROYECTO/` (zip con la contraseña, PDF y CSV original), `*.zip`, `*.sql`, `.env` y salidas locales.
+  - Antes del commit se buscó la contraseña de la base en todos los archivos a subir: no aparece en ninguno.
+  - El push se autenticó con un token temporal de la sesión de Azure CLI (`http.extraHeader`), sin guardar credenciales en el equipo ni en el repositorio.
+- **README:** describe el proyecto, la arquitectura, los recursos por entorno, la estructura y los pasos de despliegue (entregable del enunciado).
+- **Commit:** `e5893ff Estructura inicial del repositorio DataOps` (29 archivos).
+- **Evidencia:** captura 18 (Repos → Files con la estructura y el README).
+
+### 15. Conexión de Data Factory DEV a Azure Repos
+- **Qué:** se configuró la integración Git de `az-fv-dev-de-dfc-etl` con la API de Azure (`configureFactoryRepo`):
+  | Parámetro | Valor |
+  |---|---|
+  | Tipo | Azure DevOps Git |
+  | Organización / proyecto / repositorio | `frankvargaschavez201` / `dataops-dmc` / `dataops-dmc` |
+  | Rama de colaboración | `main` |
+  | Carpeta raíz | `/adf` |
+  | Publicación | habilitada (al publicar, ADF genera las plantillas ARM en la rama `adf_publish`) |
+- **Por qué:** todo lo que se construya en ADF Studio (linked services, datasets, data flows, pipelines) se guarda como JSON en `adf/` y queda versionado. Solo DEV se conecta a Git; QAS y PRD reciben los cambios por CI/CD.
+- **Verificación:** la consulta al recurso devuelve la configuración Git esperada.
+- **Costo:** 0 USD.
+
+### 16. Perfil de los datos de PostgreSQL
+- **Qué:** consulta de solo lectura a `rrhh.empleado` con un cliente `psql` temporal en Docker (`postgres:16-alpine`), sin guardar la contraseña.
+- **Resultado:**
+  - 48 empleados, IDs del 1 al 50 (no existen el 4 ni el 49). Ningún salario nulo.
+  - Tipos: `empleado_id integer`, `mnt_salario numeric(10,2)` y `mnt_tope_comision numeric(10,2)`.
+  - `mnt_tope_comision`: 18 empleados con tope (300 a 580) y 30 sin tope (nulo).
+  - El servidor **no tiene SSL** (`SHOW ssl = off`), por lo que la conexión de ADF va con `sslMode = 0` (sin cifrar). Es una limitación del servidor del curso; se documenta como observación de seguridad.
+- **Cruce con el CSV:**
+  - 15 empleados sin comisión en el CSV: 6, 7, 8, 38–48 y 50.
+  - El CSV trae comisión para el ID 4, que no existe en la tabla: se descarta (left join desde empleados).
+  - Las comisiones del CSV (8,250–12,750) superan con creces los topes (300–580).
+
+### 17. Reglas de negocio decididas
+- **Empleados sin comisión:** se incluyen con comisión 0 (left join).
+- **Tope de comisión:** se aplica `comision_aplicada = min(comision, mnt_tope_comision)` cuando el tope no es nulo; si es nulo, no hay tope.
+- **Parámetro `aplicar_tope`** (`si`/`no`, por defecto `si`): permite ejecutar sin tope, porque con tope los 13 empleados afectados bajan de ~10,000 a ~300 de comisión.
+- **Fórmula:** `salario_total = mnt_salario + comision_aplicada`.
+
+### 18. Pipeline de Data Factory (código en `adf/`)
+- **Qué:** se escribieron los recursos de ADF como JSON en la rama `feature/pipeline-salario-total`:
+  | Tipo | Nombre | Función |
+  |---|---|---|
+  | Linked service | `ls_kv_etl` | Key Vault del entorno |
+  | Linked service | `ls_adls_lake` | Data Lake, con identidad administrada |
+  | Linked service | `ls_pgsql_empleado` | PostgreSQL (conector PostgreSqlV2), contraseña desde Key Vault |
+  | Dataset | `ds_pg_empleado` | Tabla `rrhh.empleado` |
+  | Dataset | `ds_adls_empleado_parquet` | `raw/empleados/empleado.parquet` |
+  | Dataset | `ds_adls_comision_csv` | `raw/comisiones/<archivo>` (`;`, UTF-8, con encabezado) |
+  | Dataset | `ds_adls_salario_parquet` | `curated/salario_total/periodo=<AAAAMM>/` |
+  | Data flow | `df_salario_total` | Renombra columnas del CSV → left join → comisión y tope → `salario_total` → Parquet |
+  | Pipeline | `pl_salario_total` | Copy (PostgreSQL → raw) y luego Data Flow; parámetros `periodo` y `aplicar_tope` |
+- **Por qué dos etapas:** el Data Flow de ADF no lee directamente de un PostgreSQL externo; por eso primero se copia la tabla al Data Lake (Copy activity, centavos) y el Data Flow une dos archivos del lago.
+- **Columnas de salida:** `empleado_id`, `nom_empleado`, `ape_empleado`, `cod_cargo`, `cod_departamento`, `mnt_salario`, `tiene_comision`, `comision_original`, `mnt_tope_comision`, `tope_aplicado`, `comision_aplicada`, `salario_total`, `periodo`, `fecha_proceso`.
+- **Verificación:** los 9 archivos JSON son válidos.
+- **Resultado esperado:** [tests/esperado_salario_total_202610.csv](tests/esperado_salario_total_202610.csv), calculado con Python directamente desde la base y el CSV: 48 filas, 15 sin comisión, 13 con tope aplicado, suma de `salario_total` = **352,183.40**. Servirá para comparar con la salida del pipeline.
+
 ---
 
 ## Pendiente
 - [ ] Reiniciar VS Code para que el plugin de Azure encuentre `az`.
 - [x] Decidir: ruta ADF o Python, y repositorio en GitHub o Azure Repos → ADF + Azure DevOps.
-- [ ] Decidir si se aplica el tope de comisión (`mnt_tope_comision`).
-- [ ] Crear la organización de Azure DevOps y pedir el agente gratuito.
+- [x] Decidir si se aplica el tope de comisión → sí, con parámetro `aplicar_tope`; empleados sin comisión → 0.
+- [x] Crear la organización de Azure DevOps → `frankvargaschavez201`, proyecto `dataops-dmc`, conectada a Directorio predeterminado.
+- [ ] Pedir el agente gratuito de pipelines (https://aka.ms/azpipelines-parallelism-request).
 - [x] Crear una alerta de presupuesto → 5 USD/mes.
 - [x] Crear el entorno DEV.
 - [ ] Crear los entornos QAS y PRD.
-- [ ] Inicializar el repositorio Git y conectar ADF DEV a Azure Repos.
-- [ ] Construir el pipeline en ADF (Data Flow con el join y salida Parquet).
+- [x] Inicializar el repositorio Git y subirlo a Azure Repos.
+- [x] Conectar ADF DEV a Azure Repos (rama `main`, carpeta `/adf`).
+- [x] Escribir el pipeline de ADF (Copy + Data Flow) en `adf/`.
+- [ ] Revisar y completar el pull request hacia `main`.
+- [ ] Validar y ejecutar el pipeline en ADF Studio (debug) y comparar con el resultado esperado.
 - [ ] Confirmar la fecha de entrega con el docente.
