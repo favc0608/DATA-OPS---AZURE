@@ -1,0 +1,33 @@
+# Material del curso y archivos originales del enunciado (no se versionan)
+CLASE/
+PROYECTO/
+
+# Credenciales y secretos: nunca al repositorio (usar Key Vault / Variable Groups)
+*.zip
+*.sql
+.env
+.env.*
+*.secret
+*.pem
+*.pfx
+*.publishsettings
+**/secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Salidas locales de pruebas
+*.parquet
+output/
+
+# Editor, sistema y herramientas
+.vscode/
+.idea/
+.claude/
+*.log
+Thumbs.db
+.DS_Store
