@@ -1,0 +1,125 @@
+# Etapa de despliegue de ADF a un entorno (QAS o PRD).
+# 1) Pre-despliegue (detiene triggers)  2) Plantilla ARM con parámetros del entorno
+# 3) Post-despliegue (limpia y reactiva triggers)  4) Ejecuta pl_salario_total
+# 5) Descarga el Parquet de salida y corre las pruebas de calidad.
+# Solo se despliega desde main (los PR ejecutan únicamente el CI).
+
+parameters:
+  - name: stageName
+    type: string
+  - name: displayName
+    type: string
+  - name: dependsOn
+    type: string
+  - name: environment
+    type: string
+  - name: entorno
+    type: string
+  - name: ejecutarPrueba
+    type: boolean
+    default: true
+
+stages:
+  - stage: ${{ parameters.stageName }}
+    displayName: ${{ parameters.displayName }}
+    dependsOn: ${{ parameters.dependsOn }}
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    variables:
+      resourceGroup: az-fv-${{ parameters.entorno }}-de-rg-dataops
+      factoryName: az-fv-${{ parameters.entorno }}-de-dfc-etl
+      lakeName: azfv${{ parameters.entorno }}dedlslake
+      keyVaultName: az-fv-${{ parameters.entorno }}-de-kvt-etl
+      armPath: $(Pipeline.Workspace)/ArmTemplate
+    jobs:
+      - deployment: deploy
+        displayName: Desplegar en ${{ parameters.entorno }}
+        environment: ${{ parameters.environment }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - download: current
+                  artifact: ArmTemplate
+
+                - task: AzurePowerShell@5
+                  displayName: Pre-despliegue (detener triggers)
+                  inputs:
+                    azureSubscription: $(serviceConnection)
+                    azurePowerShellVersion: LatestVersion
+                    pwsh: true
+                    ScriptType: FilePath
+                    ScriptPath: $(armPath)/PrePostDeploymentScript.ps1
+                    ScriptArguments: >
+                      -armTemplate "$(armPath)/ARMTemplateForFactory.json"
+                      -ResourceGroupName $(resourceGroup)
+                      -DataFactoryName $(factoryName)
+                      -predeployment $true
+                      -deleteDeployment $false
+
+                - task: AzureResourceManagerTemplateDeployment@3
+                  displayName: Desplegar plantilla ARM en $(factoryName)
+                  inputs:
+                    deploymentScope: Resource Group
+                    azureResourceManagerConnection: $(serviceConnection)
+                    subscriptionId: $(subscriptionId)
+                    action: Create Or Update Resource Group
+                    resourceGroupName: $(resourceGroup)
+                    location: East US
+                    templateLocation: Linked artifact
+                    csmFile: $(armPath)/ARMTemplateForFactory.json
+                    csmParametersFile: $(armPath)/ARMTemplateParametersForFactory.json
+                    overrideParameters: >
+                      -factoryName $(factoryName)
+                      -ls_adls_lake_properties_typeProperties_url "https://$(lakeName).dfs.core.windows.net/"
+                      -ls_kv_etl_properties_typeProperties_baseUrl "https://$(keyVaultName).vault.azure.net/"
+                    deploymentMode: Incremental
+                    deploymentName: adf-$(Build.BuildNumber)
+
+                - task: AzurePowerShell@5
+                  displayName: Post-despliegue (limpiar y reactivar triggers)
+                  inputs:
+                    azureSubscription: $(serviceConnection)
+                    azurePowerShellVersion: LatestVersion
+                    pwsh: true
+                    ScriptType: FilePath
+                    ScriptPath: $(armPath)/PrePostDeploymentScript.ps1
+                    ScriptArguments: >
+                      -armTemplate "$(armPath)/ARMTemplateForFactory.json"
+                      -ResourceGroupName $(resourceGroup)
+                      -DataFactoryName $(factoryName)
+                      -predeployment $false
+                      -deleteDeployment $true
+
+                - ${{ if eq(parameters.ejecutarPrueba, true) }}:
+                  - task: AzureCLI@2
+                    displayName: Ejecutar pl_salario_total en $(factoryName)
+                    inputs:
+                      azureSubscription: $(serviceConnection)
+                      scriptType: bash
+                      scriptLocation: scriptPath
+                      scriptPath: scripts/ejecutar_pipeline_adf.sh
+                      arguments: $(resourceGroup) $(factoryName) $(periodo) $(aplicarTope)
+
+                  - task: AzureCLI@2
+                    displayName: Descargar salida Parquet de $(lakeName)
+                    inputs:
+                      azureSubscription: $(serviceConnection)
+                      scriptType: bash
+                      scriptLocation: inlineScript
+                      inlineScript: |
+                        set -e
+                        az storage blob download-batch --account-name $(lakeName) --auth-mode key \
+                          --source curated --pattern "salario_total/periodo=$(periodo)/*.parquet" \
+                          --destination $(Agent.TempDirectory)/salida -o none
+                        find $(Agent.TempDirectory)/salida -name "*.parquet"
+
+                  - task: UsePythonVersion@0
+                    displayName: Python 3.12
+                    inputs:
+                      versionSpec: '3.12'
+
+                  - script: |
+                      pip install --quiet pandas pyarrow
+                      python tests/validar_salida.py $(Agent.TempDirectory)/salida tests/esperado_salario_total_$(periodo).csv
+                    displayName: Pruebas de calidad de la salida (${{ parameters.entorno }})

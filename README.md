@@ -40,8 +40,9 @@ Contenedores del Data Lake: `raw` (entrada: CSV de comisiones) y `curated` (sali
 |---|---|
 | `adf/` | Recursos de Data Factory (pipelines, data flows, datasets, linked services). Lo escribe ADF al estar conectado a Git |
 | `pipelines/` | Definición YAML del CI/CD en Azure Pipelines |
-| `scripts/` | Automatización: `provisionar_azure.sh` crea la infraestructura de un entorno |
-| `tests/` | Pruebas de calidad de datos |
+| `scripts/` | `provisionar_azure.sh` crea la infraestructura de un entorno; `ejecutar_pipeline_adf.sh` ejecuta el pipeline y espera el resultado |
+| `build/` | `package.json` con la herramienta de Microsoft que valida ADF y exporta las plantillas ARM |
+| `tests/` | Pruebas estáticas del código ADF (pytest), pruebas de calidad de la salida y resultado esperado |
 | `data/sample/` | CSV de comisiones de ejemplo (periodo 202610) |
 | `docs/evidencias/` | Capturas de pantalla para el informe ([índice](docs/evidencias/README.md)) |
 | `BITACORA.md` | Registro paso a paso del proyecto |
@@ -72,8 +73,38 @@ El script crea el grupo de recursos, el Data Lake con sus contenedores (y sube e
 ### 3. Conectar Data Factory DEV a Git
 En ADF Studio (DEV): *Manage → Git configuration* → Azure DevOps Git, repositorio `dataops-dmc`, rama de colaboración `main`, carpeta raíz `/adf`. También se puede hacer desde la terminal con la API `configureFactoryRepo` (ver [BITACORA.md](BITACORA.md), paso 15). Solo DEV se conecta a Git; QAS y PRD se actualizan por CI/CD.
 
-### 4. CI/CD
-*En construcción.* Se documentará aquí el pipeline de Azure Pipelines (validación, generación de plantillas ARM y despliegue a QAS y PRD con aprobaciones).
+### 4. Probar el pipeline en DEV
+En ADF Studio: `pl_salario_total` → **Depurar** → *Usar el entorno de ejecución de la actividad* (el clúster solo vive durante la ejecución). Luego, para validar la salida:
+```bash
+az storage blob download-batch --account-name azfvdevdedlslake --auth-mode key \
+  --source curated --pattern "salario_total/periodo=202610/*.parquet" --destination salida
+pip install pandas pyarrow
+python tests/validar_salida.py salida tests/esperado_salario_total_202610.csv
+```
+
+### 5. CI/CD con Azure Pipelines
+Definición: [pipelines/azure-pipelines.yml](pipelines/azure-pipelines.yml) + [pipelines/templates/deploy-adf.yml](pipelines/templates/deploy-adf.yml). Se dispara con cada cambio en `main` (carpetas `adf/`, `pipelines/`, `tests/`, `build/`, `scripts/`).
+
+| Etapa | Qué hace |
+|---|---|
+| **CI** | Pruebas estáticas del código ADF con pytest (`tests/test_adf_estatico.py`), validación con `@microsoft/azure-data-factory-utilities` y exportación de las plantillas ARM como artefacto |
+| **CD_QAS** | Pre-despliegue (detiene triggers) → plantilla ARM con los parámetros de QAS → post-despliegue → ejecuta `pl_salario_total` → descarga el Parquet → `tests/validar_salida.py` |
+| **CD_PRD** | Espera la **aprobación** del environment `ADF-PRD` y repite el despliegue y las pruebas en PRD |
+
+Parámetros que cambian por entorno (el resto viene del ARM exportado):
+`factoryName`, `ls_adls_lake_properties_typeProperties_url`, `ls_kv_etl_properties_typeProperties_baseUrl`.
+
+No se usa el botón **Publicar** de ADF: las plantillas ARM se generan en el CI (publicación automatizada recomendada por Microsoft).
+
+Requisitos en el proyecto de Azure DevOps:
+- Service connection **`CONEXION_AZURE`** (Azure Resource Manager, workload identity federation) sobre la suscripción.
+- Environments **`ADF-QAS`** y **`ADF-PRD`** (este con aprobación obligatoria).
+
+### 6. Limpieza
+Para no generar costos al terminar:
+```bash
+for e in dev qas prd; do az group delete -n az-fv-$e-de-rg-dataops --yes --no-wait; done
+```
 
 ## Seguridad
 - No hay credenciales en el repositorio. Los secretos viven en **Azure Key Vault**, y en Azure DevOps en **Variable Groups** marcados como secretos.

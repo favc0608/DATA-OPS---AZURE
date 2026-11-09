@@ -190,6 +190,51 @@ Registro paso a paso de lo que se va haciendo y por qué.
   - `least()` se reemplazó por `iif(comision_original > tope_comision, tope_comision, comision_original)`, con los dos lados del mismo tipo.
 - **Costo de la ejecución fallida:** unos 0.10–0.20 USD (el clúster arrancó y falló al analizar el flujo).
 - **Lección:** revisar el esquema real de los archivos intermedios antes de declarar tipos en el Data Flow.
+- **Git:** PR #2 completado (merge `c620c5f`).
+
+### 21. Segunda ejecución de prueba: éxito y pruebas de calidad
+- **Ejecución:** run `e92bdfaa-3a82-4a3d-873d-1a646af046cf`, con el runtime de actividad.
+  | Actividad | Estado | Duración |
+  |---|---|---|
+  | `cp_pg_empleado_a_raw` (Copy) | ✅ Correcto | 17 s |
+  | `df_calcular_salario_total` (Data Flow) | ✅ Correcto | 3 min 41 s |
+- **Salida:** `curated/salario_total/periodo=202610/part-00000-…snappy.parquet` (un solo archivo).
+- **Pruebas de calidad** (`tests/validar_salida.py`, ejecutado en Docker con pandas y pyarrow, comparando con `tests/esperado_salario_total_202610.csv`): **11/11 OK**.
+  | Prueba | Resultado |
+  |---|---|
+  | Esquema con las 14 columnas | ✅ |
+  | 48 filas | ✅ |
+  | `empleado_id` sin duplicados | ✅ |
+  | `salario_total` sin nulos y > 0 | ✅ |
+  | Todos los empleados de la base presentes | ✅ |
+  | Valores por empleado iguales al esperado | ✅ |
+  | 15 empleados sin comisión con comisión 0 | ✅ |
+  | `comision_aplicada` ≤ tope (13 empleados topados) | ✅ |
+  | `salario_total = mnt_salario + comision_aplicada` | ✅ |
+  | Suma de `salario_total` = 352,183.40 | ✅ |
+- **Costo de la ejecución:** ~0.15–0.25 USD.
+- **Evidencias:** 39 (captura de la ejecución exitosa) y 40 (resultado de las pruebas).
+
+### 22. Agente gratuito de Azure Pipelines
+- **Qué:** el formulario https://aka.ms/azpipelines-parallelism-request fue retirado. Microsoft ahora otorga el paralelismo gratuito automáticamente al vincular la organización a una suscripción para facturación (evidencia 41).
+- **Verificación por API** (`distributedtask/resourceusage`): la organización tiene **1 trabajo paralelo hospedado por Microsoft** con **1,800 minutos al mes** para proyectos privados.
+- **Conclusión:** no hace falta un agente propio; los pipelines de CI/CD pueden correr ya.
+
+### 23. Entornos QAS y PRD
+- **Qué:** se ejecutó `scripts/provisionar_azure.sh qas` y `... prd`.
+- **Recursos:** `az-fv-qas-de-rg-dataops` y `az-fv-prd-de-rg-dataops`, cada uno con Data Lake (`azfvqasdedlslake` / `azfvprddedlslake`) con el CSV en `raw/comisiones/`, Key Vault con los 5 secretos y Data Factory vacío con identidad administrada y sus roles.
+- **Verificación:** 5 secretos, CSV presente y los mismos 4 roles que en DEV, en ambos entornos.
+- **Por qué vacíos:** QAS y PRD no se conectan a Git; su contenido llega solo por el CD.
+
+### 24. Diseño y prueba local del CI/CD
+- **Herramienta:** `@microsoft/azure-data-factory-utilities` (definida en [build/package.json](build/package.json)), que valida los recursos de ADF y exporta las plantillas ARM sin pulsar "Publicar" (publicación automatizada recomendada por Microsoft).
+- **Prueba local** en Docker (`node:20-slim`): "Validation finished. No errors found" y exportación correcta. Parámetros ARM generados: `factoryName`, URL del Data Lake, URL del Key Vault, y servidor, base y usuario de PostgreSQL. En QAS y PRD solo cambian los tres primeros.
+- **Pipeline YAML** ([pipelines/azure-pipelines.yml](pipelines/azure-pipelines.yml) y [pipelines/templates/deploy-adf.yml](pipelines/templates/deploy-adf.yml)):
+  - **CI:** pytest con [tests/test_adf_estatico.py](tests/test_adf_estatico.py) (resultados publicados en la pestaña Tests), validación de ADF y exportación del artefacto `ArmTemplate`.
+  - **CD_QAS / CD_PRD** (solo desde `main`): pre-despliegue, despliegue ARM con parámetros del entorno, post-despliegue, ejecución real de `pl_salario_total` con [scripts/ejecutar_pipeline_adf.sh](scripts/ejecutar_pipeline_adf.sh), descarga del Parquet y `tests/validar_salida.py`.
+- **Pruebas estáticas:** 22 pruebas (estructura y nombres, referencias entre recursos, contraseña desde Key Vault, sin claves en texto plano, Data Lake con identidad administrada, left join, comisión 0, tope parametrizado, fórmula, salida Parquet por periodo, CSV `;` UTF-8, orden Copy → Data Flow, coherencia del resultado esperado). Localmente: **22 passed**.
+- **Environments en Azure DevOps** (creados por API): `ADF-QAS` y `ADF-PRD`. `ADF-PRD` tiene un **check de aprobación** (aprobador: Frank Vargas Chavez, plazo 72 h) con la instrucción de revisar QAS antes de aprobar.
+- **Costo por ejecución completa del CI/CD:** ~0.50 USD (una ejecución del Data Flow en QAS y otra en PRD). El CI no tiene costo de Azure.
 
 ---
 
@@ -198,13 +243,18 @@ Registro paso a paso de lo que se va haciendo y por qué.
 - [x] Decidir: ruta ADF o Python, y repositorio en GitHub o Azure Repos → ADF + Azure DevOps.
 - [x] Decidir si se aplica el tope de comisión → sí, con parámetro `aplicar_tope`; empleados sin comisión → 0.
 - [x] Crear la organización de Azure DevOps → `frankvargaschavez201`, proyecto `dataops-dmc`, conectada a Directorio predeterminado.
-- [ ] Pedir el agente gratuito de pipelines (https://aka.ms/azpipelines-parallelism-request).
+- [x] Agente gratuito de pipelines → otorgado automáticamente (1 trabajo paralelo, 1,800 min/mes).
 - [x] Crear una alerta de presupuesto → 5 USD/mes.
 - [x] Crear el entorno DEV.
-- [ ] Crear los entornos QAS y PRD.
+- [x] Crear los entornos QAS y PRD.
 - [x] Inicializar el repositorio Git y subirlo a Azure Repos.
 - [x] Conectar ADF DEV a Azure Repos (rama `main`, carpeta `/adf`).
 - [x] Escribir el pipeline de ADF (Copy + Data Flow) en `adf/`.
 - [x] Revisar y completar el pull request hacia `main` (PR #1).
-- [ ] Validar y ejecutar el pipeline en ADF Studio (debug) y comparar con el resultado esperado.
+- [x] Validar y ejecutar el pipeline en ADF Studio (debug) y comparar con el resultado esperado → 11/11 pruebas OK.
+- [x] Guardar la captura 39 (ejecución exitosa).
+- [x] Escribir el pipeline de CI/CD (YAML), pruebas estáticas y environments con aprobación.
+- [ ] Crear la service connection `CONEXION_AZURE` (Azure DevOps → Project settings → Service connections).
+- [ ] Completar el PR #3 y registrar el pipeline en Azure Pipelines.
+- [ ] Ejecutar el CI/CD completo (CI → QAS → aprobación → PRD) y capturar evidencias.
 - [ ] Confirmar la fecha de entrega con el docente.

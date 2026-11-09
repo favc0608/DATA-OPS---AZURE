@@ -1,0 +1,18 @@
+Ejecución de prueba (debug) pl_salario_total – 08/11/2026
+Copia cp_pg_empleado_a_raw: Correcto (17 s). Data Flow df_calcular_salario_total: Correcto (3 min 41 s).
+Archivo: curated/salario_total/periodo=202610/part-00000-741f6569-2746-4460-84aa-242121a352e0-c000.snappy.parquet
+Comando: python tests/validar_salida.py <carpeta_parquet> tests/esperado_salario_total_202610.csv
+
+OK    Esquema: están las 14 columnas esperadas
+OK    Conteo de filas = 48
+OK    empleado_id sin duplicados
+OK    salario_total sin nulos
+OK    salario_total > 0
+OK    Todos los empleados de la base están en la salida
+OK    Valores por empleado iguales al esperado
+OK    Empleados sin comisión tienen comision_aplicada = 0
+OK    comision_aplicada <= mnt_tope_comision cuando hay tope
+OK    salario_total = mnt_salario + comision_aplicada
+OK    Suma de salario_total = 352183.40
+
+Resumen: 11/11 pruebas OK | filas 48 | sin comisión 15 | tope aplicado 13 | suma salario_total 352183.40
