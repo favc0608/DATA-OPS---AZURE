@@ -164,6 +164,32 @@ Registro paso a paso de lo que se va haciendo y por qué.
 - **Columnas de salida:** `empleado_id`, `nom_empleado`, `ape_empleado`, `cod_cargo`, `cod_departamento`, `mnt_salario`, `tiene_comision`, `comision_original`, `mnt_tope_comision`, `tope_aplicado`, `comision_aplicada`, `salario_total`, `periodo`, `fecha_proceso`.
 - **Verificación:** los 9 archivos JSON son válidos.
 - **Resultado esperado:** [tests/esperado_salario_total_202610.csv](tests/esperado_salario_total_202610.csv), calculado con Python directamente desde la base y el CSV: 48 filas, 15 sin comisión, 13 con tope aplicado, suma de `salario_total` = **352,183.40**. Servirá para comparar con la salida del pipeline.
+- **Git:** commit `229c9fa` en la rama `feature/pipeline-salario-total` y **pull request #1** hacia `main` (https://dev.azure.com/frankvargaschavez201/dataops-dmc/_git/dataops-dmc/pullrequest/1). Antes del commit se verificó que la contraseña no aparezca en el diff.
+- **Merge:** PR #1 aprobado y completado (merge sin fast-forward, commit `1f25d85`); la rama feature se borró. Evidencias 19–22.
+
+### 19. Pruebas en ADF Studio (sin costo)
+- **Carga desde Git:** ADF Studio, en la rama `main`, muestra el pipeline, los 4 datasets y el data flow escritos como JSON (evidencia 27).
+- **Validar todo:** "Se validó su fábrica. No se ha encontrado ningún error" (evidencia 28).
+- **Prueba de conexión de los servicios vinculados:**
+  | Servicio vinculado | Autenticación | Resultado |
+  |---|---|---|
+  | `ls_adls_lake` | Identidad administrada de ADF | ✅ Conexión correcta |
+  | `ls_kv_etl` | Identidad administrada de ADF | ✅ Conexión correcta |
+  | `ls_pgsql_empleado` | Usuario + contraseña leída de Key Vault | ✅ Conexión correcta |
+- **Conclusión:** los permisos RBAC del script de aprovisionamiento funcionan, y ADF llega al PostgreSQL del curso desde Azure. Evidencias 29–33.
+
+### 20. Primera ejecución de prueba (debug): falla del Data Flow
+- **Cómo se ejecutó:** Depurar → "Usar el entorno de ejecución de la actividad". Así el clúster se enciende solo durante la ejecución; se descartó la "sesión de depuración del flujo de datos", que deja un clúster 1 hora encendido (evidencias 36–38).
+- **Resultado:**
+  - ✅ La copia `cp_pg_empleado_a_raw` funcionó: `raw/empleados/empleado.parquet` con 48 filas.
+  - ❌ El Data Flow falló con `DF-FN-0030 - least should have all inputs of type DecimalType(...)`. Los demás errores (`DF-EXPR-010 Column 'tope_aplicado' ... unavailable`) eran consecuencia del primero.
+- **Causa:** la copia escribe los montos de PostgreSQL como `decimal(38,18)` (se comprobó leyendo el Parquet con `pyarrow`), pero el Data Flow los declaraba como `decimal(10,2)` y la comisión del CSV se convertía con otro tipo. La función `least()` exige tipos decimales idénticos.
+- **Corrección** (rama `fix/df-tipos-decimales`):
+  - El origen `srcEmpleado` declara `mnt_salario` y `mnt_tope_comision` como `decimal(38,18)`, como vienen en el archivo.
+  - En `calcComision` se convierten explícitamente a `decimal(10,2)`: `salario_base`, `tope_comision` y `comision_original`.
+  - `least()` se reemplazó por `iif(comision_original > tope_comision, tope_comision, comision_original)`, con los dos lados del mismo tipo.
+- **Costo de la ejecución fallida:** unos 0.10–0.20 USD (el clúster arrancó y falló al analizar el flujo).
+- **Lección:** revisar el esquema real de los archivos intermedios antes de declarar tipos en el Data Flow.
 
 ---
 
@@ -179,6 +205,6 @@ Registro paso a paso de lo que se va haciendo y por qué.
 - [x] Inicializar el repositorio Git y subirlo a Azure Repos.
 - [x] Conectar ADF DEV a Azure Repos (rama `main`, carpeta `/adf`).
 - [x] Escribir el pipeline de ADF (Copy + Data Flow) en `adf/`.
-- [ ] Revisar y completar el pull request hacia `main`.
+- [x] Revisar y completar el pull request hacia `main` (PR #1).
 - [ ] Validar y ejecutar el pipeline en ADF Studio (debug) y comparar con el resultado esperado.
 - [ ] Confirmar la fecha de entrega con el docente.
