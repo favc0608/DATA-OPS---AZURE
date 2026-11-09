@@ -109,6 +109,7 @@ stages:
                       scriptLocation: inlineScript
                       inlineScript: |
                         set -e
+                        mkdir -p $(Agent.TempDirectory)/salida
                         az storage blob download-batch --account-name $(lakeName) --auth-mode key \
                           --source curated --pattern "salario_total/periodo=$(periodo)/*.parquet" \
                           --destination $(Agent.TempDirectory)/salida -o none
