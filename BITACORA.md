@@ -253,6 +253,18 @@ Registro paso a paso de lo que se va haciendo y por qué.
 - **Corrección** (rama `fix/nombre-deployment-arm`): `deploymentName: ArmTemplateForFactory-$(Build.BuildId)`.
 - **Costo:** 0 USD (no llegó a ejecutarse el Data Flow).
 
+### 27. Segunda ejecución del CI/CD (run #2, `20261109.2`): pipeline OK en QAS, falla en la descarga
+- **Disparo:** automático (`individualCI`) al completar el PR #4 en `main`.
+- **Resultado:**
+  - ✅ CI.
+  - ✅ CD_QAS: pre-despliegue, despliegue ARM (`ArmTemplateForFactory-2`) y **post-despliegue** (la corrección funcionó).
+  - ✅ CD_QAS: **ejecución real de `pl_salario_total` en `az-fv-qas-de-dfc-etl`** (run `01f48129-…`): `cp_pg_empleado_a_raw` Succeeded (17 s) y `df_calcular_salario_total` Succeeded (3 min 29 s). La autenticación fue con la identidad federada de la service connection.
+  - ❌ Descarga del Parquet: `ERROR: incorrect usage: destination must be an existing directory`. Las pruebas de calidad y PRD no se ejecutaron.
+- **Causa:** `az storage blob download-batch` exige que la carpeta destino exista; en la prueba local se había creado antes, en el pipeline no.
+- **Corrección** (rama `fix/carpeta-descarga-salida`): `mkdir -p $(Agent.TempDirectory)/salida` antes de la descarga.
+- **Costo:** ~0.20 USD (una ejecución del Data Flow en QAS).
+- **Evidencias:** 45–46.
+
 ---
 
 ## Pendiente
