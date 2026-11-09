@@ -16,8 +16,7 @@ trigger:
   paths:
     include: [adf/*, pipelines/*, tests/*, build/*, scripts/*]
 
-# En Azure Repos la validación de PR se configura con una política de rama
-# (Build validation) que ejecuta este mismo pipeline; las etapas CD solo corren en main.
+# Las etapas de despliegue solo se ejecutan desde la rama main.
 
 pool:
   vmImage: ubuntu-latest

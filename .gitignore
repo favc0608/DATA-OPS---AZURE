@@ -27,7 +27,6 @@ output/
 # Editor, sistema y herramientas
 .vscode/
 .idea/
-.claude/
 *.log
 Thumbs.db
 .DS_Store

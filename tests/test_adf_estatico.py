@@ -42,7 +42,7 @@ def script_df():
     return "\n".join(cargar("dataflow", "df_salario_total")["properties"]["typeProperties"]["scriptLines"])
 
 
-# --- Estructura -----------------------------------------------------------
+# Estructura
 
 def test_existen_los_recursos_esperados():
     esperados = {("pipeline", "pl_salario_total"), ("dataflow", "df_salario_total"),
@@ -66,7 +66,7 @@ def test_referencias_existen():
     assert not rotas, f"Referencias a recursos inexistentes: {rotas}"
 
 
-# --- Seguridad ------------------------------------------------------------
+# Seguridad
 
 def test_password_postgres_viene_de_key_vault():
     pwd = cargar("linkedService", "ls_pgsql_empleado")["properties"]["typeProperties"]["password"]
@@ -91,7 +91,7 @@ def test_data_lake_usa_identidad_administrada():
     assert set(tp) == {"url"}, "Solo URL: la autenticación es con la identidad administrada de ADF"
 
 
-# --- Reglas de negocio ----------------------------------------------------
+# Reglas de negocio
 
 def test_join_es_left_por_empleado_id():
     s = script_df()
@@ -138,7 +138,7 @@ def test_pipeline_copy_luego_dataflow_con_parametros():
     assert p["parameters"]["aplicar_tope"]["defaultValue"] == "si"
 
 
-# --- Coherencia del resultado esperado --------------------------------------
+# Coherencia del resultado esperado
 
 def test_resultado_esperado_cumple_reglas():
     filas = list(csv.DictReader(ESPERADO.open(encoding="utf-8")))

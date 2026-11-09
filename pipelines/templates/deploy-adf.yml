@@ -2,7 +2,7 @@
 # 1) Pre-despliegue (detiene triggers)  2) Plantilla ARM con parámetros del entorno
 # 3) Post-despliegue (limpia y reactiva triggers)  4) Ejecuta pl_salario_total
 # 5) Descarga el Parquet de salida y corre las pruebas de calidad.
-# Solo se despliega desde main (los PR ejecutan únicamente el CI).
+# Solo se despliega desde la rama main.
 
 parameters:
   - name: stageName
