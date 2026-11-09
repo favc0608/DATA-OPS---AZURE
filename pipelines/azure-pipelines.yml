@@ -1,0 +1,102 @@
+# CI/CD de Azure Data Factory – Proyecto DataOps (DMC)
+#
+#   CI      : pruebas estáticas (pytest) + validación de ADF + exportación de plantillas ARM
+#   CD QAS  : despliegue ARM a az-fv-qas-de-dfc-etl + ejecución de prueba + pruebas de calidad
+#   CD PRD  : (aprobación manual en el environment ADF-PRD) despliegue + ejecución + pruebas
+#
+# Requisitos en Azure DevOps:
+#   - Service connection "CONEXION_AZURE" (Azure Resource Manager, workload identity federation).
+#   - Environments "ADF-QAS" y "ADF-PRD" (este último con aprobación).
+# El código de ADF se edita en DEV (Git en /adf). No se usa el botón "Publicar":
+# las plantillas ARM se generan aquí con @microsoft/azure-data-factory-utilities.
+
+trigger:
+  branches:
+    include: [main]
+  paths:
+    include: [adf/*, pipelines/*, tests/*, build/*, scripts/*]
+
+# En Azure Repos la validación de PR se configura con una política de rama
+# (Build validation) que ejecuta este mismo pipeline; las etapas CD solo corren en main.
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  serviceConnection: CONEXION_AZURE
+  subscriptionId: 79a000cd-468b-4b35-a280-90e8d1f0f4b4
+  devResourceGroup: az-fv-dev-de-rg-dataops
+  devFactoryName: az-fv-dev-de-dfc-etl
+  periodo: '202610'
+  aplicarTope: si
+
+stages:
+  - stage: CI
+    displayName: CI - Pruebas, validación y ARM
+    jobs:
+      - job: build
+        displayName: Validar ADF y generar plantillas ARM
+        steps:
+          - checkout: self
+
+          - task: UsePythonVersion@0
+            displayName: Python 3.12
+            inputs:
+              versionSpec: '3.12'
+
+          - script: |
+              pip install --quiet pytest
+              python -m pytest tests/test_adf_estatico.py -v --junitxml=$(Agent.TempDirectory)/pruebas-ci.xml
+            displayName: Pruebas estáticas del código ADF (pytest)
+
+          - task: PublishTestResults@2
+            displayName: Publicar resultados de pruebas
+            condition: always()
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: $(Agent.TempDirectory)/pruebas-ci.xml
+              testRunTitle: CI - pruebas estáticas ADF
+
+          - task: UseNode@1
+            displayName: Node.js 20
+            inputs:
+              version: '20.x'
+
+          - script: npm install --no-audit --no-fund
+            displayName: Instalar azure-data-factory-utilities
+            workingDirectory: build
+
+          - script: >
+              npm run build validate $(Build.Repository.LocalPath)/adf
+              /subscriptions/$(subscriptionId)/resourceGroups/$(devResourceGroup)/providers/Microsoft.DataFactory/factories/$(devFactoryName)
+            displayName: Validar recursos de ADF
+            workingDirectory: build
+
+          - script: >
+              npm run build export $(Build.Repository.LocalPath)/adf
+              /subscriptions/$(subscriptionId)/resourceGroups/$(devResourceGroup)/providers/Microsoft.DataFactory/factories/$(devFactoryName)
+              ArmTemplate
+            displayName: Exportar plantillas ARM
+            workingDirectory: build
+
+          - task: PublishPipelineArtifact@1
+            displayName: Publicar artefacto ArmTemplate
+            inputs:
+              targetPath: build/ArmTemplate
+              artifact: ArmTemplate
+
+  - template: templates/deploy-adf.yml
+    parameters:
+      stageName: CD_QAS
+      displayName: CD - Desplegar a QAS
+      dependsOn: CI
+      environment: ADF-QAS
+      entorno: qas
+
+  - template: templates/deploy-adf.yml
+    parameters:
+      stageName: CD_PRD
+      displayName: CD - Desplegar a PRD
+      dependsOn: CD_QAS
+      environment: ADF-PRD
+      entorno: prd

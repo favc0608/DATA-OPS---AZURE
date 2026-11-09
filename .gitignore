@@ -31,3 +31,8 @@ output/
 *.log
 Thumbs.db
 .DS_Store
+
+# Build de ADF (CI local)
+build/node_modules/
+build/ArmTemplate/
+build/package-lock.json
