@@ -276,6 +276,29 @@ Para no depender de prueba y error en el pipeline, se verificaron los pasos pend
 | YAML de la rama corregida | API `pipelines/1/preview` (expande plantillas sin ejecutar) | ✅ Etapas CI, CD_QAS, CD_PRD; `deploymentName` corregido; `mkdir` en QAS y PRD |
 - **Riesgo residual:** fallas transitorias de Azure; los pasos de pre/post-despliegue, despliegue ARM y ejecución ya se probaron con éxito en QAS en el run #2.
 
+### 29. Tercera ejecución del CI/CD (run #3, `20261109.3`): ✅ éxito de punta a punta
+- **Disparo:** automático (`individualCI`) al completar el PR #5 (commit `0a49b62`). Duración total: 15 min 32 s (01:58 → 02:14 UTC del 09/11/2026).
+  | Etapa | Resultado | Duración | Detalle |
+  |---|---|---|---|
+  | CI – Pruebas, validación y ARM | ✅ | 30 s | 22/22 pruebas estáticas (pestaña Tests), validación ADF sin errores, artefacto `ArmTemplate` |
+  | CD – Desplegar a QAS | ✅ | 6 min 04 s | ARM → `az-fv-qas-de-dfc-etl`; run ADF `262641cd-…` (copia 21 s, Data Flow 3 min 35 s); **11/11 pruebas de calidad** |
+  | Aprobación `ADF-PRD` | ✅ | 1 min 31 s | Aprobada por Frank Vargas Chavez |
+  | CD – Desplegar a PRD | ✅ | 7 min 08 s | ARM → `az-fv-prd-de-dfc-etl`; run ADF `c50cf70c-…` (copia 19 s, Data Flow 4 min 33 s); **11/11 pruebas de calidad** |
+- **Resultado en ambos entornos:** 48 filas, 15 sin comisión, 13 con tope aplicado, suma de `salario_total` = 352,183.40, idéntico a DEV y al cálculo independiente.
+- **Costo de la ejecución:** ~0.45 USD (Data Flow en QAS y PRD).
+- **Evidencias:** 47 (QAS OK, esperando aprobación), 48 (panel de aprobación), 49 (3 etapas en verde) y 50 (pasos de PRD).
+
+### 30. Resumen del registro de pruebas
+| # | Prueba | Entorno | Resultado | Acción |
+|---|---|---|---|---|
+| 1 | Validar todo + prueba de conexión de 3 linked services | DEV | ✅ | — |
+| 2 | Debug `pl_salario_total` (1.ª) | DEV | ❌ `DF-FN-0030` tipos decimales | PR #2 |
+| 3 | Debug `pl_salario_total` (2.ª) + 11 pruebas de calidad | DEV | ✅ 11/11 | — |
+| 4 | CI/CD run #1 | CI ✅ / QAS ❌ post-despliegue | Nombre del deployment ARM | PR #4 |
+| 5 | CI/CD run #2 | CI ✅ / QAS: pipeline ✅, descarga ❌ | Carpeta destino inexistente | PR #5 |
+| 6 | Revisión a fondo (simulación de pasos, requisitos PRD, preview YAML) | QAS/PRD | ✅ | — |
+| 7 | CI/CD run #3: 22 pruebas estáticas + 11 de calidad en QAS y en PRD, con aprobación | CI/QAS/PRD | ✅ | — |
+
 ---
 
 ## Pendiente
@@ -295,6 +318,10 @@ Para no depender de prueba y error en el pipeline, se verificaron los pasos pend
 - [x] Guardar la captura 39 (ejecución exitosa).
 - [x] Escribir el pipeline de CI/CD (YAML), pruebas estáticas y environments con aprobación.
 - [x] Crear la service connection `CONEXION_AZURE` (limitada a los grupos de QAS y PRD).
-- [ ] Completar el PR #3 y registrar el pipeline en Azure Pipelines.
-- [ ] Ejecutar el CI/CD completo (CI → QAS → aprobación → PRD) y capturar evidencias.
+- [x] Completar el PR #3 y registrar el pipeline en Azure Pipelines (`dataops-adf-cicd`).
+- [x] Ejecutar el CI/CD completo (CI → QAS → aprobación → PRD) → run #3 exitoso.
+- [x] Capturas finales: vista del run #3 con las 3 etapas en verde (49) y pasos de PRD (50).
+- [ ] (Opcional) Captura de la pestaña Tests del run #3 (22/22).
+- [ ] Redactar el informe final (resumen, arquitectura, registro de pruebas, evidencias).
+- [ ] Al terminar la evaluación: borrar los 3 grupos de recursos (comando en el README).
 - [ ] Confirmar la fecha de entrega con el docente.
