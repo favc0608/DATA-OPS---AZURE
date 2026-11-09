@@ -1,0 +1,17 @@
+{
+	"name": "ds_pg_empleado",
+	"properties": {
+		"description": "Tabla origen rrhh.empleado en PostgreSQL.",
+		"linkedServiceName": {
+			"referenceName": "ls_pgsql_empleado",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "PostgreSqlV2Table",
+		"schema": [],
+		"typeProperties": {
+			"schema": "rrhh",
+			"table": "empleado"
+		}
+	}
+}

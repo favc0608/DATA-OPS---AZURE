@@ -1,0 +1,135 @@
+{
+	"name": "df_salario_total",
+	"properties": {
+		"description": "Une empleados (PostgreSQL) con comisiones (CSV) por empleado_id y calcula salario_total = mnt_salario + comision_aplicada. Empleados sin comisión: 0. Tope: min(comision, mnt_tope_comision) si aplicar_tope = 'si' y el tope no es nulo.",
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ds_adls_empleado_parquet",
+						"type": "DatasetReference"
+					},
+					"name": "srcEmpleado",
+					"description": "Empleados copiados desde PostgreSQL"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_adls_comision_csv",
+						"type": "DatasetReference"
+					},
+					"name": "srcComision",
+					"description": "Comisiones del periodo (CSV)"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "ds_adls_salario_parquet",
+						"type": "DatasetReference"
+					},
+					"name": "sinkSalarioTotal",
+					"description": "Parquet consolidado en curated/"
+				}
+			],
+			"transformations": [
+				{
+					"name": "renombrarComision",
+					"description": "Renombra las columnas del CSV (con espacios y tilde)"
+				},
+				{
+					"name": "joinEmpleadoComision",
+					"description": "Left join: conserva todos los empleados aunque no tengan comisión"
+				},
+				{
+					"name": "calcComision",
+					"description": "Comisión original (0 si no hay) y comisión aplicada con tope"
+				},
+				{
+					"name": "calcSalarioTotal",
+					"description": "salario_total, periodo y fecha de proceso"
+				},
+				{
+					"name": "selectSalida",
+					"description": "Columnas finales"
+				}
+			],
+			"scriptLines": [
+				"parameters{",
+				"     periodo as string ('202610'),",
+				"     aplicar_tope as string ('si')",
+				"}",
+				"source(output(",
+				"          empleado_id as integer,",
+				"          tip_documento as string,",
+				"          num_documento as string,",
+				"          nom_empleado as string,",
+				"          ape_empleado as string,",
+				"          cod_cargo as string,",
+				"          cod_departamento as string,",
+				"          mnt_salario as decimal(10,2),",
+				"          mnt_tope_comision as decimal(10,2)",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false,",
+				"     format: 'parquet') ~> srcEmpleado",
+				"source(output(",
+				"          empleado_id as integer,",
+				"          {Nombre y Apellido} as string,",
+				"          {Comisión} as integer",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false) ~> srcComision",
+				"srcComision select(mapColumn(",
+				"          comision_empleado_id = empleado_id,",
+				"          nombre_csv = {Nombre y Apellido},",
+				"          comision = {Comisión}",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> renombrarComision",
+				"srcEmpleado, renombrarComision join(empleado_id == comision_empleado_id,",
+				"     joinType:'left',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> joinEmpleadoComision",
+				"joinEmpleadoComision derive(comision_original = toDecimal(coalesce(comision, 0), 10, 2),",
+				"          tiene_comision = !isNull(comision_empleado_id)) ~> calcComision",
+				"calcComision derive(comision_aplicada = iif($aplicar_tope == 'si' && !isNull(mnt_tope_comision), least(comision_original, mnt_tope_comision), comision_original),",
+				"          tope_aplicado = $aplicar_tope == 'si' && !isNull(mnt_tope_comision) && comision_original > mnt_tope_comision,",
+				"          salario_total = toDecimal(mnt_salario + iif($aplicar_tope == 'si' && !isNull(mnt_tope_comision), least(comision_original, mnt_tope_comision), comision_original), 12, 2),",
+				"          periodo = $periodo,",
+				"          fecha_proceso = currentTimestamp()) ~> calcSalarioTotal",
+				"calcSalarioTotal select(mapColumn(",
+				"          empleado_id,",
+				"          nom_empleado,",
+				"          ape_empleado,",
+				"          cod_cargo,",
+				"          cod_departamento,",
+				"          mnt_salario,",
+				"          tiene_comision,",
+				"          comision_original,",
+				"          mnt_tope_comision,",
+				"          tope_aplicado,",
+				"          comision_aplicada,",
+				"          salario_total,",
+				"          periodo,",
+				"          fecha_proceso",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> selectSalida",
+				"selectSalida sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'parquet',",
+				"     truncate: true,",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     partitionBy('hash', 1)) ~> sinkSalarioTotal"
+			]
+		}
+	}
+}

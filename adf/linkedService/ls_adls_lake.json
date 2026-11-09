@@ -1,0 +1,11 @@
+{
+	"name": "ls_adls_lake",
+	"properties": {
+		"description": "Data Lake (ADLS Gen2) del entorno. Autenticación con la identidad administrada de Data Factory.",
+		"annotations": [],
+		"type": "AzureBlobFS",
+		"typeProperties": {
+			"url": "https://azfvdevdedlslake.dfs.core.windows.net/"
+		}
+	}
+}

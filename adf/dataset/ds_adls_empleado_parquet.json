@@ -1,0 +1,22 @@
+{
+	"name": "ds_adls_empleado_parquet",
+	"properties": {
+		"description": "Copia de rrhh.empleado en el Data Lake (raw/empleados/empleado.parquet).",
+		"linkedServiceName": {
+			"referenceName": "ls_adls_lake",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileName": "empleado.parquet",
+				"folderPath": "empleados",
+				"fileSystem": "raw"
+			},
+			"compressionCodec": "snappy"
+		},
+		"schema": []
+	}
+}
