@@ -97,7 +97,7 @@ Parámetros que cambian por entorno (el resto viene del ARM exportado):
 No se usa el botón **Publicar** de ADF: las plantillas ARM se generan en el CI (publicación automatizada recomendada por Microsoft).
 
 Requisitos en el proyecto de Azure DevOps:
-- Service connection **`CONEXION_AZURE`** (Azure Resource Manager, workload identity federation) sobre la suscripción.
+- Service connection **`CONEXION_AZURE`** (Azure Resource Manager, workload identity federation). Por mínimo privilegio, su identidad tiene *Contributor* solo sobre los grupos de recursos de QAS y PRD (no sobre DEV ni sobre la suscripción).
 - Environments **`ADF-QAS`** y **`ADF-PRD`** (este con aprobación obligatoria).
 
 ### 6. Limpieza

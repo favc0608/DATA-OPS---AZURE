@@ -235,6 +235,13 @@ Registro paso a paso de lo que se va haciendo y por qué.
 - **Pruebas estáticas:** 22 pruebas (estructura y nombres, referencias entre recursos, contraseña desde Key Vault, sin claves en texto plano, Data Lake con identidad administrada, left join, comisión 0, tope parametrizado, fórmula, salida Parquet por periodo, CSV `;` UTF-8, orden Copy → Data Flow, coherencia del resultado esperado). Localmente: **22 passed**.
 - **Environments en Azure DevOps** (creados por API): `ADF-QAS` y `ADF-PRD`. `ADF-PRD` tiene un **check de aprobación** (aprobador: Frank Vargas Chavez, plazo 72 h) con la instrucción de revisar QAS antes de aprobar.
 - **Costo por ejecución completa del CI/CD:** ~0.50 USD (una ejecución del Data Flow en QAS y otra en PRD). El CI no tiene costo de Azure.
+- **Git:** commit `852fae4` en `feature/cicd-azure-pipelines` y **PR #3** hacia `main`. La sesión de Claude se cortó durante el push; al retomarla se verificó que el commit, el push y el PR se habían completado.
+
+### 25. Service connection `CONEXION_AZURE`
+- **Qué:** conexión de Azure Pipelines hacia la suscripción, creada en *Project settings → Service connections*: Azure Resource Manager, *App registration (automatic)*, credencial **workload identity federation** (OpenID Connect, sin contraseñas ni secretos que rotar), acceso para todos los pipelines.
+- **Problema:** el formulario proponía por defecto el grupo `VisualStudioOnline-C5CE…` (interno de Azure DevOps, creado al vincular la facturación); con él la conexión no podría desplegar en QAS ni en PRD. **Solución:** se eligió "All resource groups".
+- **Mínimo privilegio:** "All resource groups" le daba *Contributor* sobre toda la suscripción (incluido DEV). Con Azure CLI se le asignó *Contributor* solo sobre `az-fv-qas-de-rg-dataops` y `az-fv-prd-de-rg-dataops` y se eliminó el rol a nivel de suscripción. Resultado verificado: únicamente esos dos roles.
+- **Evidencias:** 42–44.
 
 ---
 
@@ -254,7 +261,7 @@ Registro paso a paso de lo que se va haciendo y por qué.
 - [x] Validar y ejecutar el pipeline en ADF Studio (debug) y comparar con el resultado esperado → 11/11 pruebas OK.
 - [x] Guardar la captura 39 (ejecución exitosa).
 - [x] Escribir el pipeline de CI/CD (YAML), pruebas estáticas y environments con aprobación.
-- [ ] Crear la service connection `CONEXION_AZURE` (Azure DevOps → Project settings → Service connections).
+- [x] Crear la service connection `CONEXION_AZURE` (limitada a los grupos de QAS y PRD).
 - [ ] Completar el PR #3 y registrar el pipeline en Azure Pipelines.
 - [ ] Ejecutar el CI/CD completo (CI → QAS → aprobación → PRD) y capturar evidencias.
 - [ ] Confirmar la fecha de entrega con el docente.
