@@ -52,3 +52,5 @@ Capturas para el informe final, en orden cronológico. Cada una enlaza con su pa
 | 46 | [46_cicd_run2_ejecutando_pipeline_qas.png](46_cicd_run2_ejecutando_pipeline_qas.png) | 08/11/2026 | Run #20261109.2: pre/post-despliegue OK; ejecución de `pl_salario_total` en QAS iniciada (login con workload identity federation) | 27. CI/CD run #2 |
 | 47 | [47_cicd_run3_qas_ok_esperando_aprobacion.png](47_cicd_run3_qas_ok_esperando_aprobacion.png) | 08/11/2026 | Run #20261109.3: CI y CD_QAS correctos; CD_PRD esperando aprobación | 29. CI/CD run #3 |
 | 48 | [48_cicd_run3_aprobacion_prd.png](48_cicd_run3_aprobacion_prd.png) | 08/11/2026 | Panel de aprobación manual del environment ADF-PRD (plazo 2 días) | 29. CI/CD run #3 |
+| 49 | [49_cicd_run3_etapas_exitosas.png](49_cicd_run3_etapas_exitosas.png) | 09/11/2026 | Run #20261109.3: las 3 etapas en verde (CI 30 s con 100% tests y 1 artefacto, QAS 6 min, PRD 7 min con 1 check aprobado) | 29. CI/CD run #3 |
+| 50 | [50_cicd_run3_pasos_prd.png](50_cicd_run3_pasos_prd.png) | 09/11/2026 | Pasos del despliegue a PRD todos correctos: pre/post-despliegue, ARM, ejecución (5 min 22 s), descarga y pruebas de calidad | 29. CI/CD run #3 |

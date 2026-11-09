@@ -286,7 +286,7 @@ Para no depender de prueba y error en el pipeline, se verificaron los pasos pend
   | CD – Desplegar a PRD | ✅ | 7 min 08 s | ARM → `az-fv-prd-de-dfc-etl`; run ADF `c50cf70c-…` (copia 19 s, Data Flow 4 min 33 s); **11/11 pruebas de calidad** |
 - **Resultado en ambos entornos:** 48 filas, 15 sin comisión, 13 con tope aplicado, suma de `salario_total` = 352,183.40, idéntico a DEV y al cálculo independiente.
 - **Costo de la ejecución:** ~0.45 USD (Data Flow en QAS y PRD).
-- **Evidencias:** 47 (QAS OK, esperando aprobación) y 48 (panel de aprobación).
+- **Evidencias:** 47 (QAS OK, esperando aprobación), 48 (panel de aprobación), 49 (3 etapas en verde) y 50 (pasos de PRD).
 
 ### 30. Resumen del registro de pruebas
 | # | Prueba | Entorno | Resultado | Acción |
@@ -320,7 +320,8 @@ Para no depender de prueba y error en el pipeline, se verificaron los pasos pend
 - [x] Crear la service connection `CONEXION_AZURE` (limitada a los grupos de QAS y PRD).
 - [x] Completar el PR #3 y registrar el pipeline en Azure Pipelines (`dataops-adf-cicd`).
 - [x] Ejecutar el CI/CD completo (CI → QAS → aprobación → PRD) → run #3 exitoso.
-- [ ] Capturas finales: vista del run #3 con las 3 etapas en verde y pestaña Tests (22/22).
+- [x] Capturas finales: vista del run #3 con las 3 etapas en verde (49) y pasos de PRD (50).
+- [ ] (Opcional) Captura de la pestaña Tests del run #3 (22/22).
 - [ ] Redactar el informe final (resumen, arquitectura, registro de pruebas, evidencias).
 - [ ] Al terminar la evaluación: borrar los 3 grupos de recursos (comando en el README).
 - [ ] Confirmar la fecha de entrega con el docente.
