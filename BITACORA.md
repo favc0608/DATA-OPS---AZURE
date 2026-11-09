@@ -265,6 +265,17 @@ Registro paso a paso de lo que se va haciendo y por qué.
 - **Costo:** ~0.20 USD (una ejecución del Data Flow en QAS).
 - **Evidencias:** 45–46.
 
+### 28. Revisión a fondo antes de la ejecución #3
+Para no depender de prueba y error en el pipeline, se verificaron los pasos pendientes uno por uno:
+| Prueba | Cómo | Resultado |
+|---|---|---|
+| Descarga + pruebas de calidad | Mismos comandos del YAML, en carpeta nueva, sobre el Parquet real que generó QAS en el run #2; contenedor `python:3.12-slim` con las mismas versiones que instala el agente (pandas 3.1.1, pyarrow 26.0.1) | ✅ 11/11, código 0 |
+| Despliegue en QAS apuntó a QAS | Lectura de los linked services desplegados en `az-fv-qas-de-dfc-etl` | ✅ Data Lake `azfvqasdedlslake` y Key Vault `az-fv-qas-de-kvt-etl` (los overrides de parámetros funcionan) |
+| Requisitos de PRD | CSV en `raw/comisiones/`, 5 secretos, roles de la identidad de ADF, rol *Contributor* de la service connection en el RG, acceso por clave del Data Lake habilitado | ✅ Iguales a QAS |
+| Environment `ADF-PRD` | API de permisos y checks | ✅ Pipeline autorizado; check de aprobación (1 aprobador, 72 h) |
+| YAML de la rama corregida | API `pipelines/1/preview` (expande plantillas sin ejecutar) | ✅ Etapas CI, CD_QAS, CD_PRD; `deploymentName` corregido; `mkdir` en QAS y PRD |
+- **Riesgo residual:** fallas transitorias de Azure; los pasos de pre/post-despliegue, despliegue ARM y ejecución ya se probaron con éxito en QAS en el run #2.
+
 ---
 
 ## Pendiente
